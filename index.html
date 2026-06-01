@@ -167,6 +167,25 @@ select:focus, .form-input:focus, .form-textarea:focus { border-color: var(--prim
   </div>
 </nav>
 
+<!-- ── 카드 수정 모달 ── -->
+<div class="modal-bg" id="editModalBg" onclick="if(event.target===this)closeEditModal()">
+  <div class="modal" style="max-width:480px;text-align:left;padding:28px 24px;">
+    <h3 style="font-size:16px;margin-bottom:16px;">✏️ 카드 수정</h3>
+    <div class="form-row" style="margin-bottom:12px;">
+      <label style="font-size:11px;font-weight:600;color:var(--text-light);margin-bottom:4px;display:block;">문제</label>
+      <input class="form-input" id="editQ" placeholder="문제" style="width:100%;" />
+    </div>
+    <div class="form-row" style="margin-bottom:16px;">
+      <label style="font-size:11px;font-weight:600;color:var(--text-light);margin-bottom:4px;display:block;">답안</label>
+      <textarea class="form-textarea" id="editA" placeholder="답안" style="width:100%;min-height:110px;"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-modal-cancel" onclick="closeEditModal()">취소</button>
+      <button class="btn-modal-confirm" onclick="saveEdit()">저장</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── 비밀번호 모달 ── -->
 <div class="modal-bg" id="modalBg">
   <div class="modal">
@@ -270,13 +289,13 @@ select:focus, .form-input:focus, .form-textarea:focus { border-color: var(--prim
 
 <script>
 // ═══════════════════════════════════
-// AUTH — SHA-256 기반 비밀번호
+// AUTH — 비밀번호 해시를 Supabase에 저장
 // ═══════════════════════════════════
-const PW_KEY    = 'fc_pw_hash';
-const DEFAULT_PW = '1234';      // 최초 기본 비밀번호
-let authed = false;             // 현재 세션 인증 여부
-let pendingPage = null;         // 인증 후 이동할 페이지
+const DEFAULT_PW = '1234';
+let authed = false;
+let pendingPage = null;
 let pendingBtn  = null;
+let cachedPwHash = null;  // 세션 중 메모리 캐시
 
 async function sha256(str) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
@@ -284,9 +303,19 @@ async function sha256(str) {
 }
 
 async function initAuth() {
-  // 저장된 비밀번호 해시 없으면 기본값 저장
-  if (!localStorage.getItem(PW_KEY)) {
-    localStorage.setItem(PW_KEY, await sha256(DEFAULT_PW));
+  // Supabase에서 비밀번호 해시 가져오기
+  try {
+    const { data } = await sb.from('settings').select('value').eq('key','pw_hash').single();
+    if (data) {
+      cachedPwHash = data.value;
+    } else {
+      // 최초 — 기본 비밀번호 1234 저장
+      cachedPwHash = await sha256(DEFAULT_PW);
+      await sb.from('settings').insert({ key: 'pw_hash', value: cachedPwHash });
+    }
+  } catch {
+    // settings 테이블 없으면 기본값으로 fallback
+    cachedPwHash = await sha256(DEFAULT_PW);
   }
 }
 
@@ -294,20 +323,13 @@ function requireAuth(page, btn) {
   if (authed) { showPage(page, btn); return; }
   pendingPage = page;
   pendingBtn  = btn;
-  openModal('verify');
+  openModal();
 }
 
-function openModal(mode) {
+function openModal() {
   document.getElementById('pwInput').value = '';
   document.getElementById('modalErr').textContent = '';
   document.getElementById('pwInput').classList.remove('error');
-  if (mode === 'verify') {
-    document.getElementById('modalIcon').textContent  = '🔐';
-    document.getElementById('modalTitle').textContent = '비밀번호 확인';
-    document.getElementById('modalDesc').textContent  = '관리자 비밀번호를 입력해주세요.';
-    document.getElementById('modalConfirmBtn').textContent = '확인';
-    document.getElementById('modalConfirmBtn').onclick = confirmPw;
-  }
   document.getElementById('modalBg').classList.add('show');
   setTimeout(() => document.getElementById('pwInput').focus(), 200);
 }
@@ -320,12 +342,10 @@ function closeModal() {
 async function confirmPw() {
   const val = document.getElementById('pwInput').value;
   if (!val) return;
-  const hash    = await sha256(val);
-  const stored  = localStorage.getItem(PW_KEY);
-  if (hash === stored) {
+  const hash = await sha256(val);
+  if (hash === cachedPwHash) {
     authed = true;
     document.getElementById('modalBg').classList.remove('show');
-    // 자물쇠 아이콘 해제
     document.getElementById('tab-manage').textContent  = '카드 관리';
     document.getElementById('tab-manage').classList.remove('locked');
     document.getElementById('tab-settings').textContent = '⚙️ 설정';
@@ -358,7 +378,10 @@ async function changePw() {
   if (!p1) return showToast('새 비밀번호를 입력해주세요');
   if (p1 !== p2) return showToast('비밀번호가 일치하지 않습니다');
   if (p1.length < 4) return showToast('비밀번호는 4자 이상이어야 합니다');
-  localStorage.setItem(PW_KEY, await sha256(p1));
+  const newHash = await sha256(p1);
+  const { error } = await sb.from('settings').upsert({ key: 'pw_hash', value: newHash });
+  if (error) return showToast('❌ 저장 실패');
+  cachedPwHash = newHash;
   document.getElementById('newPw1').value = '';
   document.getElementById('newPw2').value = '';
   showToast('✅ 비밀번호가 변경됐습니다');
@@ -366,7 +389,10 @@ async function changePw() {
 
 // Enter키로 모달 닫기
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && document.getElementById('modalBg').classList.contains('show')) closeModal();
+  if (e.key === 'Escape') {
+    if (document.getElementById('modalBg').classList.contains('show')) closeModal();
+    if (document.getElementById('editModalBg').classList.contains('show')) closeEditModal();
+  }
 });
 
 // ═══════════════════════════════════
@@ -549,11 +575,46 @@ function renderList() {
         <div class="card-item-q">${esc(c.question)}</div>
         <div class="card-item-a">${esc(c.answer)}</div>
       </div>
-      <button class="btn-icon" onclick="deleteCard(${c.id})">🗑️</button>
+      <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">
+        <button class="btn-icon" title="수정" onclick="openEditModal(${c.id})">✏️</button>
+        <button class="btn-icon" title="삭제" onclick="deleteCard(${c.id})">🗑️</button>
+      </div>
     </div>`).join('');
 }
 
 function esc(s = '') { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>'); }
+
+// ── 카드 수정 ──
+let editingId = null;
+
+function openEditModal(id) {
+  const card = manageCards.find(c => c.id === id);
+  if (!card) return;
+  editingId = id;
+  document.getElementById('editQ').value = card.question;
+  document.getElementById('editA').value = card.answer;
+  document.getElementById('editModalBg').classList.add('show');
+  setTimeout(() => document.getElementById('editQ').focus(), 200);
+}
+
+function closeEditModal() {
+  document.getElementById('editModalBg').classList.remove('show');
+  editingId = null;
+}
+
+async function saveEdit() {
+  const q = document.getElementById('editQ').value.trim();
+  const a = document.getElementById('editA').value.trim();
+  if (!q) return showToast('문제를 입력해주세요');
+  if (!a) return showToast('답안을 입력해주세요');
+  const { error } = await sb.from('cards').update({ question: q, answer: a }).eq('id', editingId);
+  if (error) return showToast('❌ 저장 실패');
+  closeEditModal();
+  await refreshManage();
+  allCards = [...manageCards].reverse();
+  renderDeckFilter(allCards);
+  showToast('✅ 수정됐습니다');
+}
 
 
 // ═══════════════════════════════════
@@ -607,9 +668,8 @@ function showToast(msg) {
 // ═══════════════════════════════════
 // INIT
 // ═══════════════════════════════════
-initAuth();
 setConnUI(true);
-initStudy();
+initAuth().then(() => initStudy());
 </script>
 </body>
 </html>
