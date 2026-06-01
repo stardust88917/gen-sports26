@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>암기카드</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f0f2f5;
+    --card-bg: #ffffff;
+    --primary: #3b82f6;
+    --primary-dark: #2563eb;
+    --answer-bg: #1e3a5f;
+    --answer-text: #e8f4fd;
+    --text: #1f2937;
+    --text-light: #6b7280;
+    --border: #e5e7eb;
+    --success: #10b981;
+    --danger: #ef4444;
+    --tag-bg: #dbeafe;
+    --tag-text: #1d4ed8;
+  }
+
+  body {
+    font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  /* ── 상단 탭 네비게이션 ── */
+  nav {
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    height: 56px;
+    gap: 4px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .logo {
+    font-weight: 700;
+    font-size: 17px;
+    color: var(--primary);
+    margin-right: 20px;
+    letter-spacing: -0.3px;
+  }
+  .tab-btn {
+    padding: 6px 16px;
+    border-radius: 20px;
+    border: none;
+    background: transparent;
+    color: var(--text-light);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .tab-btn:hover { background: var(--bg); color: var(--text); }
+  .tab-btn.active { background: var(--primary); color: #fff; }
+
+  /* ── 페이지 공통 ── */
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* ════════════════════════════
+     STUDY PAGE
+  ════════════════════════════ */
+  #study-page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 32px 16px 80px;
+    min-height: calc(100vh - 56px);
+  }
+
+  .study-header {
+    width: 100%;
+    max-width: 640px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+  .deck-selector {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .deck-chip {
+    padding: 5px 14px;
+    border-radius: 20px;
+    border: 1.5px solid var(--border);
+    background: #fff;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all .15s;
+    font-weight: 500;
+  }
+  .deck-chip:hover { border-color: var(--primary); color: var(--primary); }
+  .deck-chip.on { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+  .progress-area {
+    width: 100%;
+    max-width: 640px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .progress-bar {
+    flex: 1;
+    height: 6px;
+    background: var(--border);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--primary);
+    border-radius: 99px;
+    transition: width .3s ease;
+  }
+  .progress-text { font-size: 13px; color: var(--text-light); white-space: nowrap; }
+
+  /* 카드 컨테이너 */
+  .card-scene {
+    width: 100%;
+    max-width: 640px;
+    height: 380px;
+    perspective: 1200px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .card-scene:hover .card-inner { box-shadow: 0 20px 60px rgba(0,0,0,0.13); }
+
+  .card-inner {
+    width: 100%; height: 100%;
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 0.55s cubic-bezier(.4,0,.2,1);
+    border-radius: 20px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.10);
+  }
+  .card-inner.flipped { transform: rotateY(180deg); }
+
+  .card-face {
+    position: absolute; inset: 0;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    border-radius: 20px;
+    padding: 36px 40px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+  }
+  .card-front {
+    background: var(--card-bg);
+  }
+  .card-back {
+    background: var(--answer-bg);
+    transform: rotateY(180deg);
+  }
+
+  .card-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+    opacity: 0.45;
+  }
+  .card-front .card-label { color: var(--text); }
+  .card-back .card-label { color: var(--answer-text); }
+
+  .card-question {
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.5;
+    color: var(--text);
+    word-break: keep-all;
+  }
+  .card-answer {
+    font-size: 15px;
+    line-height: 1.75;
+    color: var(--answer-text);
+    word-break: keep-all;
+    overflow-y: auto;
+    max-height: 240px;
+    text-align: left;
+    padding-right: 4px;
+  }
+  .card-answer::-webkit-scrollbar { width: 4px; }
+  .card-answer::-webkit-scrollbar-track { background: rgba(255,255,255,0.1); border-radius: 2px; }
+  .card-answer::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 2px; }
+
+  .card-tag {
+    position: absolute;
+    top: 16px; right: 20px;
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-weight: 600;
+  }
+  .card-front .card-tag { background: var(--tag-bg); color: var(--tag-text); }
+  .card-back .card-tag { background: rgba(255,255,255,0.15); color: rgba(255,255,255,0.8); }
+
+  .flip-hint {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--text-light);
+    opacity: 0.7;
+  }
+
+  /* 버튼 행 */
+  .card-controls {
+    width: 100%;
+    max-width: 640px;
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+    align-items: center;
+    justify-content: center;
+  }
+  .btn {
+    padding: 11px 24px;
+    border-radius: 12px;
+    border: none;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .15s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-flip {
+    background: var(--primary);
+    color: #fff;
+    flex: 1;
+    max-width: 200px;
+    justify-content: center;
+    box-shadow: 0 4px 14px rgba(59,130,246,0.35);
+  }
+  .btn-flip:hover { background: var(--primary-dark); }
+  .btn-next {
+    background: #fff;
+    color: var(--text);
+    border: 1.5px solid var(--border);
+    justify-content: center;
+  }
+  .btn-next:hover { border-color: var(--primary); color: var(--primary); background: #f0f6ff; }
+  .btn-shuffle {
+    background: #fff;
+    color: var(--text);
+    border: 1.5px solid var(--border);
+    justify-content: center;
+  }
+  .btn-shuffle:hover { border-color: var(--primary); color: var(--primary); background: #f0f6ff; }
+
+  .no-cards {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-light);
+  }
+  .no-cards .icon { font-size: 48px; margin-bottom: 12px; }
+  .no-cards p { font-size: 15px; }
+
+  /* ════════════════════════════
+     MANAGE PAGE
+  ════════════════════════════ */
+  #manage-page {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 32px 16px 80px;
+  }
+  .manage-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .manage-header h2 { font-size: 20px; font-weight: 700; }
+
+  /* 덱 선택/생성 */
+  .deck-bar {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .deck-bar label { font-size: 13px; font-weight: 600; color: var(--text-light); white-space: nowrap; }
+  .deck-select {
+    flex: 1;
+    min-width: 140px;
+    padding: 8px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    outline: none;
+    background: #fff;
+  }
+  .deck-select:focus { border-color: var(--primary); }
+  .input-new-deck {
+    flex: 1;
+    min-width: 140px;
+    padding: 8px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    outline: none;
+  }
+  .input-new-deck:focus { border-color: var(--primary); }
+
+  /* 카드 추가 폼 */
+  .add-form {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+  .add-form h3 { font-size: 15px; font-weight: 700; margin-bottom: 16px; color: var(--text); }
+  .form-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+  .form-row label { font-size: 12px; font-weight: 600; color: var(--text-light); letter-spacing: 0.5px; }
+  .form-input, .form-textarea {
+    padding: 10px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    width: 100%;
+    transition: border-color .15s;
+    resize: vertical;
+  }
+  .form-input:focus, .form-textarea:focus { border-color: var(--primary); }
+  .form-textarea { min-height: 90px; }
+  .btn-add {
+    background: var(--primary);
+    color: #fff;
+    width: 100%;
+    justify-content: center;
+    padding: 12px;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(59,130,246,0.3);
+  }
+  .btn-add:hover { background: var(--primary-dark); }
+
+  /* 벌크 입력 */
+  .bulk-toggle {
+    font-size: 13px;
+    color: var(--primary);
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    padding: 0;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .bulk-area { display: none; }
+  .bulk-area.open { display: block; }
+  .bulk-hint {
+    font-size: 12px;
+    color: var(--text-light);
+    margin-bottom: 8px;
+    line-height: 1.6;
+    background: #f8f9fa;
+    padding: 10px 12px;
+    border-radius: 8px;
+  }
+
+  /* 카드 목록 */
+  .card-list-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .card-list-header h3 { font-size: 15px; font-weight: 700; }
+  .count-badge {
+    background: var(--tag-bg);
+    color: var(--tag-text);
+    font-size: 12px;
+    font-weight: 700;
+    padding: 2px 10px;
+    border-radius: 20px;
+  }
+  .card-list { display: flex; flex-direction: column; gap: 10px; }
+
+  .card-item {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    transition: box-shadow .15s;
+  }
+  .card-item:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.07); }
+  .card-item-body { flex: 1; min-width: 0; }
+  .card-item-q {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    word-break: keep-all;
+  }
+  .card-item-a {
+    font-size: 13px;
+    color: var(--text-light);
+    line-height: 1.55;
+    word-break: keep-all;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .card-item-deck {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--tag-text);
+    background: var(--tag-bg);
+    padding: 2px 8px;
+    border-radius: 20px;
+    margin-bottom: 6px;
+    display: inline-block;
+  }
+  .card-item-actions { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+  .btn-icon {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    border: 1.5px solid var(--border);
+    background: #fff;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all .15s;
+  }
+  .btn-icon:hover { border-color: var(--danger); background: #fff5f5; }
+
+  /* 토스트 */
+  .toast {
+    position: fixed;
+    bottom: 32px; left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: #1f2937;
+    color: #fff;
+    padding: 12px 24px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 500;
+    opacity: 0;
+    transition: all .3s ease;
+    z-index: 999;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* 검색 */
+  .search-input {
+    padding: 9px 14px 9px 36px;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    font-size: 14px;
+    outline: none;
+    width: 100%;
+    margin-bottom: 16px;
+    background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%236b7280' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.099zm-5.242 1.656a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11z'/%3E%3C/svg%3E") no-repeat 12px center;
+    transition: border-color .15s;
+  }
+  .search-input:focus { border-color: var(--primary); }
+
+  /* 반응형 */
+  @media (max-width: 480px) {
+    .card-scene { height: 320px; }
+    .card-face { padding: 28px 24px; }
+    .card-question { font-size: 17px; }
+    .card-answer { font-size: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="logo">📇 암기카드</span>
+  <button class="tab-btn active" onclick="showPage('study')">학습</button>
+  <button class="tab-btn" onclick="showPage('manage')">카드 관리</button>
+</nav>
+
+<!-- ══ STUDY PAGE ══ -->
+<div id="study-page" class="page active">
+  <div class="study-header">
+    <div class="deck-selector" id="deckFilter">
+      <button class="deck-chip on" data-deck="all" onclick="selectDeck(this)">전체</button>
+    </div>
+    <button class="btn btn-shuffle" onclick="shuffleCards()" style="padding:7px 14px;font-size:13px;">🔀 셔플</button>
+  </div>
+
+  <div class="progress-area">
+    <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+    <span class="progress-text" id="progressText">0 / 0</span>
+  </div>
+
+  <div class="card-scene" id="cardScene" onclick="flipCard()">
+    <div class="card-inner" id="cardInner">
+      <div class="card-face card-front">
+        <span class="card-tag" id="frontTag">-</span>
+        <div class="card-label">Q U E S T I O N</div>
+        <div class="card-question" id="cardQuestion">카드를 추가해주세요</div>
+      </div>
+      <div class="card-face card-back">
+        <span class="card-tag" id="backTag">-</span>
+        <div class="card-label">A N S W E R</div>
+        <div class="card-answer" id="cardAnswer">답안이 여기에 표시됩니다</div>
+      </div>
+    </div>
+  </div>
+  <p class="flip-hint">카드 클릭 또는 스페이스바로 뒤집기</p>
+
+  <div class="card-controls">
+    <button class="btn btn-next" onclick="prevCard()">← 이전</button>
+    <button class="btn btn-flip" onclick="flipCard()">🔄 뒤집기</button>
+    <button class="btn btn-next" onclick="nextCard()">다음 →</button>
+  </div>
+</div>
+
+<!-- ══ MANAGE PAGE ══ -->
+<div id="manage-page" class="page">
+  <div class="manage-header">
+    <h2>카드 관리</h2>
+  </div>
+
+  <!-- 덱 선택/추가 -->
+  <div class="deck-bar">
+    <label>덱</label>
+    <select class="deck-select" id="deckSelect" onchange="renderCardList()">
+      <option value="">덱을 선택하세요</option>
+    </select>
+    <input class="input-new-deck" id="newDeckInput" placeholder="새 덱 이름 입력" />
+    <button class="btn" onclick="addDeck()" style="background:var(--primary);color:#fff;padding:8px 16px;font-size:13px;">+ 덱 추가</button>
+  </div>
+
+  <!-- 카드 추가 폼 -->
+  <div class="add-form">
+    <h3>✏️ 카드 추가</h3>
+
+    <button class="bulk-toggle" onclick="toggleBulk()">
+      <span id="bulkToggleIcon">▶</span> 여러 장 한번에 입력 (MD 형식)
+    </button>
+    <div class="bulk-area" id="bulkArea">
+      <div class="bulk-hint">
+        형식: 번호. <strong>문제 제목</strong> 한 줄, 다음 줄에 탭+번호. 핵심 답안 (두 번째 줄이 짧은 답)<br>
+        예) <code>1. <strong>응급처치란?</strong></code><br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<code>1. Check, Call, Care</code>
+      </div>
+      <textarea class="form-textarea" id="bulkInput" style="min-height:140px;font-family:monospace;font-size:13px;" placeholder="MD 내용을 붙여넣으세요..."></textarea>
+      <button class="btn btn-add" onclick="parseBulkInput()" style="margin-top:10px;">📥 일괄 불러오기</button>
+    </div>
+
+    <div class="form-row" style="margin-top:16px;">
+      <label>문제</label>
+      <input class="form-input" id="inputQ" placeholder="문제를 입력하세요" />
+    </div>
+    <div class="form-row">
+      <label>답안</label>
+      <textarea class="form-textarea" id="inputA" placeholder="답안을 입력하세요 (여러 줄 가능)"></textarea>
+    </div>
+    <button class="btn btn-add" onclick="addCard()">+ 카드 추가</button>
+  </div>
+
+  <!-- 카드 목록 -->
+  <div class="card-list-header">
+    <h3>카드 목록</h3>
+    <span class="count-badge" id="cardCount">0장</span>
+  </div>
+  <input class="search-input" id="searchInput" placeholder="문제 또는 답 검색..." oninput="renderCardList()" />
+  <div class="card-list" id="cardList"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════
+// 데이터 관리
+// ═══════════════════════════════
+const STORAGE_KEY = 'flashcards_v2';
+
+function load() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || { decks: [], cards: [] }; }
+  catch { return { decks: [], cards: [] }; }
+}
+function save(data) { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+
+let db = load();
+let studyQueue = [];
+let currentIdx = 0;
+let activeDeck = 'all';
+let isFlipped = false;
+
+// ═══════════════════════════════
+// 초기 데이터 (응급처치 + 트레이닝방법론)
+// ═══════════════════════════════
+const INITIAL_DATA = {
+  decks: ['응급처치', '트레이닝방법론'],
+  cards: [
+    // ── 응급처치 ──
+    { id:1, deck:'응급처치', q:'응급처치란? 응급처치 방법, First Aid',
+      a:'응급 환자에게 골든 타임 내 적절한 치료를 하는 것.\n환자 상태에 따라 심폐소생술, RICES, 하임리히법 등을 시행.\n갑자기 발생한 외상이나 질환에 대해 발생 장소에서 최소한의 치료를 제공.' },
+    { id:2, deck:'응급처치', q:'응급처치 3C란?',
+      a:'Check → Call → Care\n• Check: 의식·호흡 확인, 안전·주변 환경 확인\n• Call: 119 신고\n• Care: 환자 케어 및 처치' },
+    { id:3, deck:'응급처치', q:'응급처치의 중요성·필요성',
+      a:'환자의 생명을 구하고 치료 기간을 단축.\n심장마비 발생 시 뇌는 4분 이상 지나면 심각한 손상 → 빠른 심폐소생술 필수.\n출혈 시 빠른 지혈이 많은 혈액 손실을 막음.' },
+    { id:4, deck:'응급처치', q:'응급처치 시 일반적인 주의사항, AED 도착 전 해야 하는 응급처치',
+      a:'① 의식 유무 확인 후 119 신고 (또는 지목하여 요청)\n② 호흡·맥박 없으면 심폐소생술 실시\n③ 부상 있으면 RICES 실행\n④ 기도 막혔으면 하임리히법 실행\n⑤ 화상 시 해당 부위 옷 제거하지 않음\n⑥ 2차 손상 주의' },
+    { id:5, deck:'응급처치', q:'PRICES 설명 (근골격계 손상 시 응급처치)',
+      a:'Protection(보호) / Rest(안정) / Icing(얼음찜질) / Compression(압박) / Elevation(거상) / Support·Stabilization(지지·고정)\n부목이나 삼각건으로 골절 부위를 고정해 2차 손상 예방.' },
+    { id:6, deck:'응급처치', q:'RICES 단어 뜻',
+      a:'Rest(안정·휴식) / Icing(얼음찜질) / Compression(압박) / Elevation(거상) / Support·Splint·Stabilization(지지·고정)' },
+    { id:7, deck:'응급처치', q:'골절 환자의 응급처치 방법',
+      a:'부목이나 삼각건으로 골절 부위를 고정 → 2차 손상 예방.\n상태 위급 시 119 신고.' },
+    { id:8, deck:'응급처치', q:'골절 시 증상·징후와 처치 방법',
+      a:'증상: 심한 통증, 부종, 변형 등\n처치: 부목·삼각건으로 고정, 출혈 시 압박 드레싱, 냉찜질로 부종·통증 완화.\n골절된 뼈를 맞추려는 무리한 처치 금지.\n개방성 골절은 폐쇄성보다 합병증 위험이 높아 신속한 처치 필요.' },
+    { id:9, deck:'응급처치', q:'하임리히법 손의 위치와 그 이유',
+      a:'위치: 명치와 배꼽 사이\n이유: 복부 압박 → 흉부 압력 상승 → 폐의 공기가 기도를 통해 고압으로 빠져나가 이물질 제거.\n방법: 환자 등 뒤에 서서 주먹 엄지 방향을 배꼽~명치 사이에 대고 다른 손을 겹쳐 위로 강하게 밀어 올림.' },
+    { id:10, deck:'응급처치', q:'기도폐쇄 원인·유형·확인 방법 및 대처 방법',
+      a:'원인: 이물질, 천식 등\n유형: 부분 폐쇄 / 완전 폐쇄\n확인: 숨 못 쉬고 손으로 목을 움켜쥠\n처치: 부분폐쇄→등 두드리기·기침 유도, 완전폐쇄→하임리히법(명치~배꼽 사이 압박)\n의식 소실 시 → 119 신고 + 이물질 보이면 제거 + 심폐소생술' },
+    { id:11, deck:'응급처치', q:'2025년 한국 심폐소생술(CPR) 가이드라인 주요 변경 사항',
+      a:'2006 제정 → 2011·2015·2020·2025 개정 (2026.01.29 질병관리청)\n① 구급상담요원이 신고자에게 AED 확보·사용 지도 강화\n② 6초마다 1회 인공호흡(10회/분)\n③ 가슴압박 시 구조자의 편안한 손이 아래로\n④ 여성: 브래지어 제거 않고 위치 조정 후 패드 부착\n⑤ 영아: 구조자 수 관계없이 양손 감싼 두 엄지 압박법\n⑥ 1세 이상 소아에게 일반인 AED 사용 제안' },
+    { id:12, deck:'응급처치', q:'CPR(심폐소생술) 정의·자세·위치·속도·깊이',
+      a:'정의: 호흡 정지 시 혈액 순환·심장 회복을 위해 실시\n위치: 흉골 아래쪽 절반 부위\n자세: 깍지 낀 두 손 손바닥 뒤꿈치, 팔 쭉 펴고 수직으로 체중 실기\n속도: 분당 100~120회\n깊이: 약 5cm\n환자가 회복되거나 119 도착까지 지속, AED 있으면 사용' },
+    { id:13, deck:'응급처치', q:'CPR에서 가슴압박을 깊이 해야 하는 이유, 이완 확인 이유',
+      a:'심장의 혈액이 뇌로 갈 수 있을 정도로 강하게 압박해야 함.\n압박 후 완전히 이완해야 심장에 혈액이 다시 유입됨.\n덜 이완된 상태에서 재압박 시 박출 혈액량 감소.' },
+    { id:14, deck:'응급처치', q:'CPR을 멈춰야 할 때(중단 경우)',
+      a:'① 환자가 의식을 되찾은 경우\n② 119 도착, 전문의료인에게 인계한 경우\n③ 구조자의 안전이 위험한 경우\n④ 교대 가능한 구조자가 있는 경우' },
+    { id:15, deck:'응급처치', q:'가슴압박소생술보다 표준심폐소생술을 사용하는 경우',
+      a:'심정지 원인이 비심장성인 경우\n심정지 시간이 오래 지속된 경우\n호흡성 원인에 의한 심정지 의심 시\n익수 환자의 경우\n→ 위 상황에서는 인공호흡을 함께 하는 표준심폐소생술 권장' },
+    { id:16, deck:'응급처치', q:'AED(자동심장충격기)란 무엇인가?',
+      a:'Automated External Defibrillator\n심장 기능 정지 시 심장 박동을 정상화하기 위해 전기 충격을 가하는 응급 처치 의료 기기.\n자동 심장 제세동기·자동 심장충격기·자동 제세동기라고도 불림.' },
+    { id:17, deck:'응급처치', q:'AED 사용 방법',
+      a:'① 전원 켜기\n② 패드 부착 (음성 안내 따라)\n③ 심장 리듬 분석 (아무도 닿지 않기)\n④ 전기 충격 (주변 물러나기)\n⑤ 즉시 심폐소생술 재개\n119 도착까지 반복 수행.' },
+    { id:18, deck:'응급처치', q:'AED 패드 부착 위치는?',
+      a:'패드1: 우측 쇄골뼈(빗장뼈) 바로 아래\n패드2: 좌측 유두 옆 겨드랑이\n아이들의 경우: 앞·뒤로 부착' },
+    { id:19, deck:'응급처치', q:'AED에서 전기충격 실행 시 주의사항',
+      a:'주변에 아무도 없는지 확인 후 충격 버튼 누르기.\n감전 방지를 위해 주변 사람 모두 멀리 물러서기.\n"물러나세요!" 외친 후 시행.' },
+    { id:20, deck:'응급처치', q:'AED는 무엇이고, 두 번 물러나야 하는 이유는?',
+      a:'자동 심장 제세동기.\n① 심전도 분석 중: 부정확한 분석 방지\n② 전기충격 시: 2차 사고(감전) 방지' },
+    { id:21, deck:'응급처치', q:'"AED, 제세동이 필요 없다"고 음성안내 시 해야 할 것',
+      a:'즉시 심폐소생술을 다시 시작.\n환자가 의식 회복하거나 119 대원 도착까지 계속 진행.' },
+    { id:22, deck:'응급처치', q:'AED, 땀이나 물기가 있는 사람에게 제세동기 사용 시 조치사항',
+      a:'땀이나 물기를 닦아낸 후 패드 부착.\n가슴털이 있을 경우 털 제거 후 부착.' },
+    { id:23, deck:'응급처치', q:'저체온증의 정의와 응급처치 방법',
+      a:'정의: 체온 35°C 이하로 떨어진 상태\n처치: ① 젖은 옷 제거 ② 몸통에 담요 ③ 겨드랑이·배 등 흉부에 핫팩·뜨거운 물로 중심체온 올리기 ④ 의식 있으면 뜨거운 음료·고열량 음식 제공 ⑤ 119 신고' },
+    { id:24, deck:'응급처치', q:'쇼크의 종류 3가지 이상',
+      a:'출혈성 쇼크(외상·출혈) / 심장성 쇼크(심장 질환) / 신경성 쇼크(척추 질환)\n추가: 저체액성 쇼크 / 과민성(아나필락시스) 쇼크 / 호흡성 쇼크 / 패혈성 쇼크' },
+    { id:25, deck:'응급처치', q:'출혈성 쇼크에 대해 설명',
+      a:'동맥류 파열·외상·위장관 출혈 등으로 혈액 감소 → 심한 혈압 저하 → 신체 혈액순환 부족.\n15% 이상 혈액 손실: 수액·수혈 필요\n40% 이상: 생명 위급.' },
+    { id:26, deck:'응급처치', q:'출혈 발생한 환자의 응급처치 방법',
+      a:'① 출혈 부위 신속히 압박·드레싱\n② 상처 부위를 심장보다 위로 올리기 (골절 의심 시 제외)\n③ 지압점 압박 병행\n④ 119 신고' },
+    { id:27, deck:'응급처치', q:'드레싱 하는 이유',
+      a:'상처 보호 / 지혈 / 감염·오염 방지 / 혈액과 분비물 흡수' },
+    { id:28, deck:'응급처치', q:'화상 응급처치 방법',
+      a:'① 화상 부위 즉시 차가운 물로 식히기\n② 깨끗한 천으로 화상 부위 덮기(드레싱)\n③ 물집 터뜨리지 않기\n④ 심한 화상 → 즉시 병원 이송' },
+    { id:29, deck:'응급처치', q:'2도 화상 증상 및 응급처치',
+      a:'증상: 진피층까지 손상, 피부가 빨개지고 물집·진물 발생\n처치: 충분히 물로 식히기 → 물집 터뜨리지 않기 → 항생제연고·화상용 연고 도포 → 드레싱' },
+
+    // ── 트레이닝방법론 ──
+    { id:30, deck:'트레이닝방법론', q:'스트레칭의 개념·필요성·효과',
+      a:'근육·힘줄·관절 등을 펴주는 일.\n긴장된 근육을 이완하고 가동 범위를 늘려 유연하게 만듦.\n혈액 순환 원활, 운동 전 워밍업, 부상 방지 효과.' },
+    { id:31, deck:'트레이닝방법론', q:'운동 전 스트레칭을 해야 하는 이유·목적',
+      a:'부상 방지 / 유연성 향상 / 근육 이완 / 운동 능력 상승' },
+    { id:32, deck:'트레이닝방법론', q:'운동 전 준비운동의 필요성과 효과',
+      a:'체온 상승 → 근육·관절 가동범위 증가 → 부상 방지.\n정적 상태에서 운동에 적합한 동적 상태로 호흡계·순환계·근육·관절을 준비시킴.' },
+    { id:33, deck:'트레이닝방법론', q:'준비운동과 정리운동의 필요성·중요성·효과',
+      a:'준비운동: 몸을 운동에 적합하게, 가동 범위 증가, 부상 방지, 유연성·운동 능력 향상\n정리운동: 운동 후 지친 몸 회복, 피로 물질 제거, 심박수 점진적 정상화' },
+    { id:34, deck:'트레이닝방법론', q:'트레이닝의 원리 5가지',
+      a:'과점반개특\n① 과부하의 원리: 일상 이상의 자극으로 운동 효과 향상\n② 점진성의 원리: 양·강도를 점차적으로 증가\n③ 반복성의 원리: 정기적 반복으로 효과 유지\n④ 개별성의 원리: 개인 특수 조건 고려\n⑤ 특이성의 원리: 목표에 맞는 특정 부위 운동' },
+    { id:35, deck:'트레이닝방법론', q:'서킷 트레이닝이란?',
+      a:'일반적으로 6개 이상, 10개 내외의 여러 운동을 휴식 없이 순차적으로 순환 실시.\n근력·근지구력·순발력 강화 가능.' },
+    { id:36, deck:'트레이닝방법론', q:'웨이트 트레이닝의 효과 3가지',
+      a:'① 근육량 증가 → 건강한 몸·자신감\n② 체력·근력·심폐 기능 강화\n③ 체지방 감소 → 성인병 예방, 가동 범위 확보로 유연성 향상' },
+    { id:37, deck:'트레이닝방법론', q:'인터벌 트레이닝이란?',
+      a:'고강도 운동 사이에 저강도 운동 또는 불완전 휴식을 넣어 반복하는 훈련법.\n예) 직선 구간: 고강도 러닝 / 곡선 구간: 저강도 조깅' },
+    { id:38, deck:'트레이닝방법론', q:'오버 트레이닝이란?',
+      a:'체력이 감당할 수 있는 것보다 과도한 운동.\n강도 높은 운동을 지속적으로 무리하게 실시 → 만성적 피로 상태 → 운동 능력 저하.' },
+    { id:39, deck:'트레이닝방법론', q:'유연성 트레이닝의 신체적 효과',
+      a:'관절 가동 범위 확대 / 운동 기능 향상 / 부상 방지 / 근육 불균형 개선 / 관절 기능 장애 및 과도한 부상 위험 감소' },
+    { id:40, deck:'트레이닝방법론', q:'머신과 프리웨이트의 차이',
+      a:'머신: 무게 조절 쉬움, 부상 위험↓, 근육 고립 용이, 사용 쉬움 / 개개인 각도 조절 어려움, 한 기구에 한 운동\n프리웨이트(덤벨·바벨): 하나로 여러 운동 가능, 가성비↑, 복합 관절 운동, 가동 범위·각도 조절 자유로움' },
+    { id:41, deck:'트레이닝방법론', q:'근육 펌핑이란?',
+      a:'운동 시 해당 근육으로 혈류가 몰려 근육이 일시적으로 부풀어오르는 현상.\n운동 후 1~2시간 이내 사라짐.' },
+    { id:42, deck:'트레이닝방법론', q:'근우선법과 선피로법',
+      a:'근우선법: 가장 약하거나 근력이 약한 부위를 먼저 단련\n선피로법: 주동근에 먼저 피로를 주는 훈련법 → 다관절 운동에서 다른 근육이 먼저 지치는 것을 방지' },
+    { id:43, deck:'트레이닝방법론', q:'단순관절(단관절)과 복합관절(다중관절) 설명·운동 종류',
+      a:'단순관절: 하나의 관절만 사용, 여러 근육 동원 안 됨 → 예) 덤벨 컬\n복합관절: 2개 이상의 관절 사용, 여러 근육 동시 사용 → 예) 스쿼트' },
+    { id:44, deck:'트레이닝방법론', q:'세트와 랩(Set & Rep)',
+      a:'세트: 운동을 휴식 없이 반복하는 횟수의 묶음\n랩: 세트 안에서 한 가지 운동의 반복 횟수\n예) 4세트 5랩 = 5개씩 4번 반복' },
+    { id:45, deck:'트레이닝방법론', q:'피라미드 세트와 디센딩 세트',
+      a:'피라미드 세트: 무게를 늘려가며 횟수는 줄여가는 방법\n디센딩 세트(역피라미드): 점점 무게를 낮춰가는 방법' },
+  ]
+};
+
+// 처음 실행 시 초기 데이터 로드
+if (!db.cards || db.cards.length === 0) {
+  db = JSON.parse(JSON.stringify(INITIAL_DATA));
+  save(db);
+}
+
+// ═══════════════════════════════
+// 페이지 전환
+// ═══════════════════════════════
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(name + '-page').classList.add('active');
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  if (name === 'study') initStudy();
+  if (name === 'manage') initManage();
+}
+
+// ═══════════════════════════════
+// STUDY
+// ═══════════════════════════════
+function initStudy() {
+  renderDeckFilter();
+  buildQueue();
+  showCard();
+}
+
+function renderDeckFilter() {
+  const container = document.getElementById('deckFilter');
+  const decks = ['all', ...getDecks()];
+  container.innerHTML = decks.map(d =>
+    `<button class="deck-chip ${activeDeck===d?'on':''}" data-deck="${d}" onclick="selectDeck(this)">
+      ${d === 'all' ? '전체' : d}
+    </button>`
+  ).join('');
+}
+
+function getDecks() {
+  const all = [...db.decks];
+  db.cards.forEach(c => { if (!all.includes(c.deck) && c.deck) all.push(c.deck); });
+  return all;
+}
+
+function selectDeck(el) {
+  document.querySelectorAll('.deck-chip').forEach(b => b.classList.remove('on'));
+  el.classList.add('on');
+  activeDeck = el.dataset.deck;
+  buildQueue();
+  showCard();
+}
+
+function buildQueue() {
+  let cards = activeDeck === 'all' ? db.cards : db.cards.filter(c => c.deck === activeDeck);
+  studyQueue = shuffle([...cards]);
+  currentIdx = 0;
+  isFlipped = false;
+}
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function shuffleCards() {
+  buildQueue();
+  showCard();
+  showToast('🔀 카드를 섞었습니다');
+}
+
+function showCard() {
+  const total = studyQueue.length;
+  document.getElementById('progressText').textContent = total ? `${currentIdx + 1} / ${total}` : '0 / 0';
+  document.getElementById('progressFill').style.width = total ? `${((currentIdx + 1) / total) * 100}%` : '0%';
+
+  // 플립 리셋
+  isFlipped = false;
+  document.getElementById('cardInner').classList.remove('flipped');
+
+  if (!total) {
+    document.getElementById('cardQuestion').textContent = '카드가 없습니다. 카드 관리에서 추가해주세요.';
+    document.getElementById('cardAnswer').textContent = '';
+    document.getElementById('frontTag').textContent = '-';
+    document.getElementById('backTag').textContent = '-';
+    return;
+  }
+
+  const card = studyQueue[currentIdx];
+  document.getElementById('cardQuestion').textContent = card.q;
+  document.getElementById('cardAnswer').textContent = card.a;
+  document.getElementById('frontTag').textContent = card.deck || '-';
+  document.getElementById('backTag').textContent = card.deck || '-';
+}
+
+function flipCard() {
+  isFlipped = !isFlipped;
+  document.getElementById('cardInner').classList.toggle('flipped', isFlipped);
+}
+
+function nextCard() {
+  if (!studyQueue.length) return;
+  currentIdx = (currentIdx + 1) % studyQueue.length;
+  showCard();
+}
+
+function prevCard() {
+  if (!studyQueue.length) return;
+  currentIdx = (currentIdx - 1 + studyQueue.length) % studyQueue.length;
+  showCard();
+}
+
+// 키보드 단축키
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.code === 'Space') { e.preventDefault(); flipCard(); }
+  if (e.code === 'ArrowRight') nextCard();
+  if (e.code === 'ArrowLeft') prevCard();
+});
+
+// ═══════════════════════════════
+// MANAGE
+// ═══════════════════════════════
+function initManage() {
+  renderDeckSelect();
+  renderCardList();
+}
+
+function renderDeckSelect() {
+  const sel = document.getElementById('deckSelect');
+  const decks = getDecks();
+  sel.innerHTML = '<option value="">덱을 선택하세요</option>' +
+    decks.map(d => `<option value="${d}">${d}</option>`).join('');
+}
+
+function addDeck() {
+  const input = document.getElementById('newDeckInput');
+  const name = input.value.trim();
+  if (!name) return showToast('덱 이름을 입력해주세요');
+  if (db.decks.includes(name)) return showToast('이미 있는 덱입니다');
+  db.decks.push(name);
+  save(db);
+  input.value = '';
+  renderDeckSelect();
+  renderDeckFilter();
+  showToast(`✅ "${name}" 덱이 추가됐습니다`);
+}
+
+function addCard() {
+  const deck = document.getElementById('deckSelect').value;
+  const q = document.getElementById('inputQ').value.trim();
+  const a = document.getElementById('inputA').value.trim();
+  if (!q) return showToast('문제를 입력해주세요');
+  if (!a) return showToast('답안을 입력해주세요');
+  if (!deck) return showToast('덱을 선택해주세요');
+
+  const id = Date.now();
+  db.cards.push({ id, deck, q, a });
+  save(db);
+  document.getElementById('inputQ').value = '';
+  document.getElementById('inputA').value = '';
+  renderCardList();
+  showToast('✅ 카드가 추가됐습니다');
+}
+
+function deleteCard(id) {
+  db.cards = db.cards.filter(c => c.id !== id);
+  save(db);
+  renderCardList();
+  showToast('🗑️ 카드가 삭제됐습니다');
+}
+
+function renderCardList() {
+  const sel = document.getElementById('deckSelect').value;
+  const q = document.getElementById('searchInput').value.toLowerCase();
+
+  let cards = db.cards;
+  if (sel) cards = cards.filter(c => c.deck === sel);
+  if (q) cards = cards.filter(c => c.q.toLowerCase().includes(q) || c.a.toLowerCase().includes(q));
+
+  document.getElementById('cardCount').textContent = `${cards.length}장`;
+  const list = document.getElementById('cardList');
+
+  if (!cards.length) {
+    list.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-light);font-size:14px;">카드가 없습니다.</div>`;
+    return;
+  }
+
+  list.innerHTML = cards.map(c => `
+    <div class="card-item">
+      <div class="card-item-body">
+        <span class="card-item-deck">${c.deck || '미분류'}</span>
+        <div class="card-item-q">${escHtml(c.q)}</div>
+        <div class="card-item-a">${escHtml(c.a)}</div>
+      </div>
+      <div class="card-item-actions">
+        <button class="btn-icon" title="삭제" onclick="deleteCard(${c.id})">🗑️</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+}
+
+// ── 벌크 입력 ──
+function toggleBulk() {
+  const area = document.getElementById('bulkArea');
+  const icon = document.getElementById('bulkToggleIcon');
+  const isOpen = area.classList.toggle('open');
+  icon.textContent = isOpen ? '▼' : '▶';
+}
+
+function parseBulkInput() {
+  const deck = document.getElementById('deckSelect').value;
+  if (!deck) return showToast('먼저 덱을 선택해주세요');
+
+  const raw = document.getElementById('bulkInput').value;
+  const lines = raw.split('\n');
+  let added = 0;
+  let currentQ = null;
+  let currentA = [];
+
+  function flush() {
+    if (currentQ && currentA.length) {
+      const id = Date.now() + Math.random();
+      db.cards.push({ id, deck, q: currentQ, a: currentA.join('\n') });
+      added++;
+    }
+    currentQ = null;
+    currentA = [];
+  }
+
+  for (let line of lines) {
+    const stripped = line.replace(/^\s+/, '');
+    // 최상위 번호. **문제** 형태 (굵은 글씨 or 일반)
+    const topMatch = stripped.match(/^\d+\.\s+\*\*(.+?)\*\*(.*)$/) ||
+                     stripped.match(/^\d+\.\s+(.+)$/);
+    const subMatch = stripped.match(/^\d+\.\s+(.+)$/);
+
+    if (topMatch && !line.startsWith('\t') && !line.startsWith('  ')) {
+      flush();
+      // 굵은 글씨 제거
+      currentQ = stripped.replace(/^\d+\.\s+/, '').replace(/\*\*/g,'').replace(/_/g,'').trim();
+    } else if (subMatch && (line.startsWith('\t') || line.startsWith('  '))) {
+      // 첫 번째 서브 항목을 짧은 답으로
+      const sub = subMatch[1].replace(/\*/g,'').trim();
+      if (currentQ && !currentA.length) {
+        // 이탤릭(*...*) 제거
+        currentA.push(sub.replace(/^\*(.+)\*$/, '$1'));
+      } else if (currentQ) {
+        currentA.push(sub);
+      }
+    }
+  }
+  flush();
+
+  if (added === 0) return showToast('파싱된 카드가 없습니다. 형식을 확인해주세요.');
+  save(db);
+  renderCardList();
+  document.getElementById('bulkInput').value = '';
+  showToast(`✅ ${added}장의 카드가 추가됐습니다`);
+}
+
+// ── 토스트 ──
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ── 초기화 ──
+initStudy();
+</script>
+</body>
+</html>
